@@ -23,18 +23,36 @@ export const HandTracker: React.FC<HandTrackerProps> = ({ active, handDataRef, o
 
   useEffect(() => {
     const initLandmarker = async () => {
+      // Use a consistent version to avoid mismatches
+      const version = '0.10.15'; 
+      const wasmUrl = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${version}/wasm`;
+      
       try {
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-        );
-        landmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-            delegate: "GPU"
-          },
-          runningMode: "VIDEO",
-          numHands: 1
-        });
+        const vision = await FilesetResolver.forVisionTasks(wasmUrl);
+        
+        try {
+          // Try GPU first
+          landmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+              delegate: "GPU"
+            },
+            runningMode: "VIDEO",
+            numHands: 1
+          });
+        } catch (gpuError) {
+          console.warn("MediaPipe GPU delegate failed, falling back to CPU:", gpuError);
+          // Fallback to CPU
+          landmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
+            baseOptions: {
+              modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+              delegate: "CPU"
+            },
+            runningMode: "VIDEO",
+            numHands: 1
+          });
+        }
+        
         onLoaded();
       } catch (e) {
         console.error("MediaPipe initialization error:", e);
